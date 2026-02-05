@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>事件日志系统</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, "Microsoft YaHei", sans-serif;
+      margin: 0;
+      background: #f6f7fb;
+      color: #1f2933;
+    }
+    .container {
+      max-width: 980px;
+      margin: 24px auto 48px;
+      padding: 0 16px;
+    }
+    h1 {
+      margin-bottom: 16px;
+      font-size: 24px;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      color: #3a4a5b;
+    }
+    section {
+      margin-bottom: 20px;
+      padding: 16px;
+      background: #fff;
+      border: 1px solid #e6e8ec;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    }
+    label {
+      margin-right: 8px;
+      color: #52606d;
+      font-size: 14px;
+    }
+    input,
+    select {
+      margin-right: 12px;
+      padding: 8px 12px;
+      border: 1px solid #cfd6df;
+      border-radius: 6px;
+      outline: none;
+      min-width: 180px;
+    }
+    input:focus,
+    select:focus {
+      border-color: #4c9ffe;
+      box-shadow: 0 0 0 2px rgba(76, 159, 254, 0.15);
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      background: #2f80ed;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #2269c6;
+    }
+    button:active {
+      transform: translateY(1px);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      background: #fff;
+    }
+    th,
+    td {
+      border-bottom: 1px solid #eef1f4;
+      padding: 10px 8px;
+      text-align: left;
+      font-size: 14px;
+    }
+    th {
+      background: #f8fafc;
+      color: #3a4a5b;
+      font-weight: 600;
+    }
+    tbody tr:nth-child(even) {
+      background: #fafbfc;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .message {
+      margin-top: 8px;
+      color: #d32f2f;
+      font-size: 13px;
+    }
+    @media (max-width: 640px) {
+      .row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      input,
+      select,
+      button {
+        width: 100%;
+        margin-right: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+  <h1>事件日志系统</h1>
+
+  <section>
+    <h2>事件创建表单</h2>
+    <form id="eventForm" class="row">
+      <label for="eventType">事件类型</label>
+      <select id="eventType" required>
+        <option value="info">info</option>
+        <option value="error">error</option>
+        <option value="warning">warning</option>
+      </select>
+
+      <label for="eventMessage">事件描述</label>
+      <input id="eventMessage" type="text" placeholder="请输入事件描述" required />
+
+      <button type="submit">提交</button>
+    </form>
+    <div id="formMessage" class="message"></div>
+  </section>
+
+  <section>
+    <h2>筛选区域</h2>
+    <div class="row">
+      <label for="filterType">事件类型</label>
+      <select id="filterType">
+        <option value="all">all</option>
+        <option value="info">info</option>
+        <option value="error">error</option>
+        <option value="warning">warning</option>
+      </select>
+      <button id="filterButton" type="button">筛选</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>事件列表展示</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>事件类型</th>
+          <th>事件描述</th>
+          <th>创建时间</th>
+        </tr>
+      </thead>
+      <tbody id="eventTableBody"></tbody>
+    </table>
+  </section>
+
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:3000";
+
+    const eventForm = document.getElementById("eventForm");
+    const eventType = document.getElementById("eventType");
+    const eventMessage = document.getElementById("eventMessage");
+    const formMessage = document.getElementById("formMessage");
+    const filterType = document.getElementById("filterType");
+    const filterButton = document.getElementById("filterButton");
+    const eventTableBody = document.getElementById("eventTableBody");
+
+    function renderEvents(events) {
+      eventTableBody.innerHTML = "";
+      if (!events.length) {
+        const row = document.createElement("tr");
+        row.innerHTML = "<td colspan=\"4\">暂无数据</td>";
+        eventTableBody.appendChild(row);
+        return;
+      }
+      events.forEach((event) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${event.id}</td>
+          <td>${event.type}</td>
+          <td>${event.message}</td>
+          <td>${event.timestamp}</td>
+        `;
+        eventTableBody.appendChild(row);
+      });
+    }
+
+    async function fetchEvents(type = "all") {
+      const url = new URL(`${API_BASE}/api/events`);
+      if (type && type !== "all") {
+        url.searchParams.set("type", type);
+      }
+
+      const response = await fetch(url.toString());
+      const data = await response.json();
+      renderEvents(Array.isArray(data) ? data : []);
+    }
+
+    eventForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      formMessage.textContent = "";
+
+      const type = eventType.value;
+      const message = eventMessage.value.trim();
+
+      if (!message) {
+        formMessage.textContent = "事件描述不能为空";
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/api/events`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ type, message }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          formMessage.textContent = error.error || "提交失败";
+          return;
+        }
+
+        eventMessage.value = "";
+        await fetchEvents(filterType.value);
+      } catch (error) {
+        formMessage.textContent = "无法连接到服务";
+      }
+    });
+
+    filterButton.addEventListener("click", () => {
+      fetchEvents(filterType.value);
+    });
+
+    fetchEvents();
+  </script>
+</body>
+</html>
